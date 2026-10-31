@@ -18,8 +18,8 @@ kismet-analyzer cfg unpacked/path/to/YourAsset.uasset
 ## LLM and MCP integration
 
 Guidance for exposing cooked asset behavior to language models is documented
-under [`llm/`](llm/), including the recommended semantic JSON graph, MCP
-retrieval tools, context-minimization rules, and example responses.
+under [`llm/schema.md`](llm/schema.md) and [`llm/mcp-design.md`](llm/mcp-design.md).
+The complete usage guide lives in the companion `kismet-analyzer-llm` workspace.
 
 For direct semantic export, use:
 
