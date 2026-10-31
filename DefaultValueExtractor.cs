@@ -19,12 +19,28 @@ public sealed class LlmDefaultValue
 /// renders them as compact, readable default-value records. This is intentionally separate from
 /// the kismet bytecode analysis so graph-less, property-only assets (e.g. utility AI behavior
 /// blueprints) can surface their data without re-running tree generation.
+/// <para>
+/// Beyond the CDO's direct properties this also descends into component/subobject defaults:
+/// serialized component template exports (e.g. CollisionCapsule, SCS component templates,
+/// construction-script GEN_VARIABLE components) are emitted with component-qualified names.
+/// Blueprint plumbing (SimpleConstructionScript, SCS_Node, the Blueprint marker itself) is
+/// skipped, as are empty templates and serialized null values.
+/// </para>
 /// </summary>
 public static class DefaultValueExtractor
 {
+    /// <summary>Export classes that are Blueprint plumbing rather than component data.</summary>
+    private static readonly HashSet<string> PlumbingClasses = new(StringComparer.Ordinal)
+    {
+        "Blueprint",
+        "WidgetTree",
+        "SCS_Node",
+        "SimpleConstructionScript",
+    };
+
     /// <summary>
-    /// Extracts default values from the asset's CDO. Returns an empty list when the asset has no
-    /// class export or no CDO.
+    /// Extracts default values from the asset's CDO and component subobjects. Returns an empty
+    /// list when the asset has no class export or no CDO.
     /// </summary>
     public static List<LlmDefaultValue> Extract(UAsset asset)
     {
@@ -34,7 +50,7 @@ public static class DefaultValueExtractor
         var cdo = FindCdo(asset);
         if (cdo == null) return results;
 
-        foreach (var property in cdo.Data)
+        foreach (var property in cdo.Data ?? new List<PropertyData>())
         {
             results.Add(new LlmDefaultValue
             {
@@ -44,7 +60,61 @@ public static class DefaultValueExtractor
             });
         }
 
+        results.AddRange(ExtractSubobjectDefaults(asset, cdo));
         return results;
+    }
+
+    /// <summary>
+    /// Extracts serialized property overrides from component/subobject template exports, named
+    /// <c>ComponentName.PropertyName</c>. Emits nothing for plumbing exports, empty templates,
+    /// and serialized null values.
+    /// </summary>
+    private static IEnumerable<LlmDefaultValue> ExtractSubobjectDefaults(UAsset asset, NormalExport cdo)
+    {
+        foreach (var export in asset.Exports.OfType<NormalExport>())
+        {
+            // The CDO was already extracted directly.
+            if (ReferenceEquals(export, cdo)) continue;
+            // Class and function exports are not component data.
+            if (export is StructExport) continue;
+            if (IsPlumbing(export, asset)) continue;
+
+            foreach (var property in export.Data ?? new List<PropertyData>())
+            {
+                var value = RenderValue(property, asset);
+                // Serialized nulls and zero-defaults (object refs set to None, null text,
+                // enum-backed bytes at 0) carry no information.
+                if (IsSerializedNull(property, value)) continue;
+
+                yield return new LlmDefaultValue
+                {
+                    Name = $"{export.ObjectName}.{property.Name}",
+                    Type = TypeLabel(property),
+                    Value = value,
+                };
+            }
+        }
+    }
+
+    private static bool IsSerializedNull(PropertyData property, string value)
+    {
+        if (string.IsNullOrEmpty(value) || value is "None" or "null") return true;
+        return property is BytePropertyData && value == "0";
+    }
+
+    private static bool IsPlumbing(NormalExport export, UAsset asset)
+    {
+        if (export.ClassIndex.IsImport())
+        {
+            var className = export.ClassIndex.ToImport(asset)?.ObjectName.ToString();
+            return className == null || PlumbingClasses.Contains(className);
+        }
+        if (export.ClassIndex.IsExport())
+        {
+            var className = export.ClassIndex.ToExport(asset)?.ObjectName.ToString();
+            return className == null || PlumbingClasses.Contains(className);
+        }
+        return true;
     }
 
     private static NormalExport? FindCdo(UAsset asset)
@@ -116,7 +186,17 @@ public static class DefaultValueExtractor
             return doubleData.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        var text = property.ToString() ?? "";
+        // Some UAssetAPI property types throw on null values when rendered; degrade to an empty
+        // value instead of aborting the whole export.
+        string text;
+        try
+        {
+            text = property.ToString() ?? "";
+        }
+        catch (Exception exception) when (exception is NullReferenceException or InvalidOperationException)
+        {
+            return "";
+        }
         if (!string.IsNullOrWhiteSpace(text) && text != property.GetType().Name)
         {
             return text;

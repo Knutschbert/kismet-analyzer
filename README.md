@@ -28,6 +28,11 @@ kismet-analyzer to-llm-json unpacked/path/to/YourAsset.uasset > YourAsset.llm.js
 kismet-analyzer gen-llm-tree unpacked-assets/ llm-output/
 ```
 
+Pass `--defaults` to also dump each asset's CDO default values, including
+component/subobject defaults (component-qualified names like
+`A_MoveTo_C_0.Acceptance Radius`). Blueprint plumbing, empty templates, and
+serialized null/zero values are skipped.
+
 The tree command writes one `.llm.json` file per asset and a `manifest.json`
 for discovery. Existing `to-json`, `gen-cfg`, and DOT output are unchanged.
 
