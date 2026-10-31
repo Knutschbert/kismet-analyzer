@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "source": "kismet-bytecode",
+  "parseStatus": "complete",
+  "asset": "/Game/Characters/BP_Player",
+  "class": "BP_Player_C",
+  "parent": "Character",
+  "properties": [
+    {"name": "Health", "type": "Float"},
+    {"name": "bDead", "type": "Bool"}
+  ],
+  "functions": [
+    {
+      "name": "TakeDamage",
+      "calls": ["Die"],
+      "reads": ["Health", "Damage"],
+      "writes": ["Health", "bDead"],
+      "branches": 1
+    },
+    {
+      "name": "Die",
+      "calls": ["PlayDeathAnimation"],
+      "reads": [],
+      "writes": ["bDead"],
+      "branches": 0
+    }
+  ],
+  "callEdges": [
+    {"from": "TakeDamage", "to": "Die"},
+    {"from": "Die", "to": "PlayDeathAnimation"}
+  ],
+  "diagnostics": []
+}

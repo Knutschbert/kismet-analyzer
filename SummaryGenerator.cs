@@ -133,6 +133,22 @@ public class SummaryGenerator
             : StartAddress;
     }
 
+    public class FunctionAnalysis
+    {
+        public string Name { get; }
+        public List<Instruction> Instructions { get; }
+        public List<BasicBlock> Blocks { get; }
+        public List<string> Diagnostics { get; }
+
+        public FunctionAnalysis(string name, List<Instruction> instructions, List<BasicBlock> blocks, List<string> diagnostics)
+        {
+            Name = name;
+            Instructions = instructions;
+            Blocks = blocks;
+            Diagnostics = diagnostics;
+        }
+    }
+
     public readonly struct BlockEdge
     {
         public uint TargetAddress { get; }
@@ -152,6 +168,7 @@ public class SummaryGenerator
     TextWriter DotOutput;
     Graph Graph;
     FunctionExport? CurrentFunction;
+    List<string>? CurrentDiagnostics;
 
     public SummaryGenerator(UAsset asset, TextWriter output, TextWriter dotOutput)
     {
@@ -164,6 +181,62 @@ public class SummaryGenerator
         Graph.GraphAttributes["pack"] = "true";
         Graph.NodeAttributes["fontname"] = "monospace";
         Graph.EdgeAttributes["fontname"] = "monospace";
+    }
+
+    public List<FunctionAnalysis> AnalyzeFunctions()
+    {
+        var analyses = new List<FunctionAnalysis>();
+
+        foreach (var export in Asset.Exports)
+        {
+            if (export is not FunctionExport function) continue;
+
+            CurrentFunction = function;
+            var instructions = new List<Instruction>();
+            var diagnostics = new List<string>();
+            CurrentDiagnostics = diagnostics;
+            uint index = 0;
+
+            foreach (var expression in function.ScriptBytecode)
+            {
+                var address = index;
+                try
+                {
+                    instructions.Add(Stringify(expression, ref index));
+                }
+                catch (Exception ex)
+                {
+                    var message = $"Unsupported expression {expression.GetType().Name} at bytecode address {address}: {ex.Message}";
+                    diagnostics.Add(message);
+
+                    var fallback = new Lines((int)address).Text($"UNSUPPORTED {expression.GetType().Name}");
+                    instructions.Add(new Instruction(address, new List<Reference>(), fallback));
+
+                    try
+                    {
+                        index = address + (uint)Math.Max(1, expression.GetSize(Asset));
+                    }
+                    catch
+                    {
+                        index = address + 1;
+                    }
+                }
+            }
+
+            var leaders = IdentifyBlockLeaders(instructions, function.ObjectName.ToString());
+            var blocks = BuildBasicBlocks(instructions, leaders);
+            analyses.Add(new FunctionAnalysis(function.ObjectName.ToString(), instructions, blocks, diagnostics));
+        }
+
+        CurrentDiagnostics = null;
+
+        return analyses;
+    }
+
+    void Warn(string message)
+    {
+        CurrentDiagnostics?.Add(message);
+        Console.Error.WriteLine("WARN: " + message);
     }
 
     public bool Summarize()
@@ -975,12 +1048,12 @@ public class SummaryGenerator
                         }
                         else
                         {
-                            Console.Error.WriteLine("WARN: Unimplemented StackNode import");
+                            Warn("Unimplemented StackNode import");
                         }
                     }
                     else
                     {
-                        Console.Error.WriteLine("WARN: Unimplemented non-EX_IntConst");
+                        Warn("Unimplemented non-EX_IntConst");
                     }
 
                     if (top) referencedAddresses.Add(new Reference(index, ReferenceType.Normal));
@@ -1093,12 +1166,12 @@ public class SummaryGenerator
                                     }
                                     else
                                     {
-                                        Console.Error.WriteLine("WARN: Unimplemented LatentActionInfo to other than EX_Self");
+                                        Warn("Unimplemented LatentActionInfo to other than EX_Self");
                                     }
                                 }
                                 else
                                 {
-                                    Console.Error.WriteLine("WARN: Expected EX_NameConst but found " + e.Value[2]);
+                                    Warn("Expected EX_NameConst but found " + e.Value[2]);
                                 }
                             }
                             else

@@ -15,6 +15,22 @@ directly in a web browser:
 kismet-analyzer cfg unpacked/path/to/YourAsset.uasset
 ```
 
+## LLM and MCP integration
+
+Guidance for exposing cooked asset behavior to language models is documented
+under [`llm/`](llm/), including the recommended semantic JSON graph, MCP
+retrieval tools, context-minimization rules, and example responses.
+
+For direct semantic export, use:
+
+```console
+kismet-analyzer to-llm-json unpacked/path/to/YourAsset.uasset > YourAsset.llm.json
+kismet-analyzer gen-llm-tree unpacked-assets/ llm-output/
+```
+
+The tree command writes one `.llm.json` file per asset and a `manifest.json`
+for discovery. Existing `to-json`, `gen-cfg`, and DOT output are unchanged.
+
 ## Example Output
 
 ![CFG](https://github.com/trumank/kismet-analyzer/assets/1144160/a59014c1-a65c-4c1e-9f70-2589f59ca33d)
