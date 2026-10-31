@@ -95,6 +95,11 @@ complete.
 - `to-llm-json` supplies one compact semantic asset response.
 - `gen-llm-tree` supplies per-asset semantic responses and `manifest.json`.
 
+The tree exporter does not create documents for assets with no semantic
+content. MCP indexing should use the manifest for skipped-asset accounting and
+index only documents with an output path. Raw asset inventory, if needed, is a
+separate concern from the LLM semantic document set.
+
 An MCP indexer can consume these projections, but a direct integration with the
 parsed `UAsset` object is preferable because it can create explicit call,
 property, and asset-reference edges without reparsing rendered output.

@@ -381,16 +381,27 @@ Leading underscores can be used to work around special function names being ille
             {
                 var asset = LoadAsset(ueVersion, mappings, assetPath);
                 var export = LlmExporter.Build(asset, relativePath, ueVersion);
-                File.WriteAllText(outputPath, LlmExporter.Serialize(export));
-                manifest.Assets.Add(new LlmManifestEntry
+                var manifestEntry = new LlmManifestEntry
                 {
                     Asset = relativePath.Replace('\\', '/'),
-                    Output = relativeOutput.Replace('\\', '/'),
                     Class = export.Class,
                     Functions = export.Functions.Select(function => function.Name).ToList(),
                     ParseStatus = export.ParseStatus,
-                });
-                Console.WriteLine(outputPath);
+                };
+
+                if (export.HasSemanticContent)
+                {
+                    File.WriteAllText(outputPath, LlmExporter.Serialize(export));
+                    manifestEntry.Output = relativeOutput.Replace('\\', '/');
+                    Console.WriteLine(outputPath);
+                }
+                else
+                {
+                    if (File.Exists(outputPath)) File.Delete(outputPath);
+                    manifestEntry.ParseStatus = "empty";
+                    manifestEntry.Reason = "no_semantic_content";
+                }
+                manifest.Assets.Add(manifestEntry);
             }
             catch (Exception ex)
             {
@@ -399,6 +410,7 @@ Leading underscores can be used to work around special function names being ille
                     Asset = relativePath.Replace('\\', '/'),
                     Output = relativeOutput.Replace('\\', '/'),
                     ParseStatus = "error",
+                    Reason = ex.Message,
                 });
                 Console.Error.WriteLine($"ERROR: {assetPath}: {ex.Message}");
             }

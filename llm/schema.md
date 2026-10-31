@@ -93,3 +93,9 @@ Return this only for a selected function or selected block range:
 | 2 | Selected CFG blocks and pseudo-code | Detailed reasoning |
 | 3 | Filtered UAssetAPI JSON or `.txt` CFG | Verification and forensics |
 | 4 | Raw/unparsed data and full asset JSON | Parser/debugging workflows |
+
+Tree exports omit assets whose semantic result has no properties, functions,
+call edges, or diagnostics. Those assets are represented only in
+`manifest.json` with `parseStatus: "empty"`, `reason: "no_semantic_content"`,
+and `output: null`. An explicitly requested `to-llm-json` call still returns
+the empty document.

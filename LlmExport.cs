@@ -19,6 +19,7 @@ public sealed class LlmAssetExport
     public List<LlmFunctionExport> Functions { get; set; } = new();
     public List<LlmCallEdge> CallEdges { get; set; } = new();
     public List<LlmDiagnostic> Diagnostics { get; set; } = new();
+    public bool HasSemanticContent => Properties.Count > 0 || Functions.Count > 0 || CallEdges.Count > 0 || Diagnostics.Count > 0;
 }
 
 public sealed class LlmPropertyExport
@@ -78,10 +79,11 @@ public sealed class LlmManifest
 public sealed class LlmManifestEntry
 {
     public string Asset { get; set; } = "";
-    public string Output { get; set; } = "";
+    public string? Output { get; set; }
     public string? Class { get; set; }
     public List<string> Functions { get; set; } = new();
     public string ParseStatus { get; set; } = "complete";
+    public string? Reason { get; set; }
 }
 
 public static class LlmExporter
@@ -200,6 +202,7 @@ public static class LlmExporter
         }
 
         if (result.Diagnostics.Count > 0) result.ParseStatus = "partial";
+        else if (!result.HasSemanticContent) result.ParseStatus = "empty";
         return result;
     }
 
@@ -210,7 +213,11 @@ public static class LlmExporter
 
     public static string SerializeManifest(LlmManifest manifest)
     {
-        return JsonConvert.SerializeObject(manifest, Formatting.Indented, JsonSettings);
+        return JsonConvert.SerializeObject(manifest, Formatting.Indented, new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            NullValueHandling = NullValueHandling.Include,
+        });
     }
 
     private static IEnumerable<LlmPropertyExport> GetProperties(StructExport structExport, UAsset asset)
