@@ -17,7 +17,7 @@ public class DotTests
         Assert.Equal(@"digraph
 {
 }
-", writer.ToString());
+", writer.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]
@@ -34,7 +34,7 @@ public class DotTests
 {
 graph [test = ""value""]
 }
-", writer.ToString());
+", writer.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]
@@ -56,9 +56,9 @@ graph [test = ""value""]
         Assert.Equal(@"digraph
 {
 graph [test = ""value""]
-nodeA [color = ""blue""]
+""nodeA"" [color = ""blue""]
 }
-", writer.ToString());
+", writer.ToString().ReplaceLineEndings("\n"));
     }
 
     [Fact]
@@ -80,12 +80,12 @@ nodeA [color = ""blue""]
 
         Assert.Equal(@"digraph
 {
-nodeA [color = ""blue""]
+""nodeA"" [color = ""blue""]
 {
 rank = ""min"";
-nodeA
+""nodeA""
 }
 }
-", writer.ToString());
+", writer.ToString().ReplaceLineEndings("\n"));
     }
 }
