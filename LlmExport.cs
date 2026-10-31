@@ -16,10 +16,11 @@ public sealed class LlmAssetExport
     public string? Parent { get; set; }
     public string EngineVersion { get; set; } = "UNKNOWN";
     public List<LlmPropertyExport> Properties { get; set; } = new();
+    public List<LlmDefaultValue>? DefaultValues { get; set; }
     public List<LlmFunctionExport> Functions { get; set; } = new();
     public List<LlmCallEdge> CallEdges { get; set; } = new();
     public List<LlmDiagnostic> Diagnostics { get; set; } = new();
-    public bool HasSemanticContent => Properties.Count > 0 || Functions.Count > 0 || CallEdges.Count > 0 || Diagnostics.Count > 0;
+    public bool HasSemanticContent => Properties.Count > 0 || (DefaultValues?.Count > 0) || Functions.Count > 0 || CallEdges.Count > 0 || Diagnostics.Count > 0;
 }
 
 public sealed class LlmPropertyExport
@@ -94,7 +95,7 @@ public static class LlmExporter
         ContractResolver = new CamelCasePropertyNamesContractResolver(),
     };
 
-    public static LlmAssetExport Build(UAsset asset, string? assetPath, EngineVersion engineVersion)
+    public static LlmAssetExport Build(UAsset asset, string? assetPath, EngineVersion engineVersion, bool includeDefaults = false)
     {
         var classExport = asset.GetClassExport();
         var result = new LlmAssetExport
@@ -104,6 +105,11 @@ public static class LlmExporter
             Parent = classExport?.SuperStruct.ToImport(asset).ObjectName.ToString(),
             EngineVersion = engineVersion.ToString(),
         };
+
+        if (includeDefaults)
+        {
+            result.DefaultValues = DefaultValueExtractor.Extract(asset);
+        }
 
         if (classExport != null)
         {

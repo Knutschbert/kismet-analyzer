@@ -74,6 +74,9 @@ public class Program
         var showProgress = new Option<bool>
             (name: "--progress",
             description: "Show progress bar (possibly hides error messages)");
+        var includeDefaults = new Option<bool>
+            (name: "--defaults",
+            description: "Include CDO default values in the semantic LLM export");
         var dotPath = new Option<string>
             (name: "--dot",
             description: "Path to graphviz dot executable, otherwise will search PATH");
@@ -134,13 +137,15 @@ public class Program
 
         var toLlmJson = new Command("to-llm-json", "Convert binary asset to compact semantic LLM JSON");
         toLlmJson.Add(assetInput);
-        toLlmJson.SetHandler(ToLlmJson, ueVersion, mappings, assetInput);
+        toLlmJson.Add(includeDefaults);
+        toLlmJson.SetHandler(ToLlmJson, ueVersion, mappings, assetInput, includeDefaults);
         rootCommand.AddCommand(toLlmJson);
 
         var genLlmTree = new Command("gen-llm-tree", "Generate semantic LLM JSON for an asset tree");
         genLlmTree.Add(assetInputDirectory);
         genLlmTree.Add(llmOutputDiretory);
-        genLlmTree.SetHandler(GenLlmTree, ueVersion, mappings, assetInputDirectory, llmOutputDiretory);
+        genLlmTree.Add(includeDefaults);
+        genLlmTree.SetHandler(GenLlmTree, ueVersion, mappings, assetInputDirectory, llmOutputDiretory, includeDefaults);
         rootCommand.AddCommand(genLlmTree);
 
         var read = new Command("read", "Read asset into memory");
@@ -360,12 +365,12 @@ Leading underscores can be used to work around special function names being ille
     {
         Console.WriteLine(LoadAsset(ueVersion, mappings, assetInput).SerializeJson(Newtonsoft.Json.Formatting.Indented));
     }
-    static void ToLlmJson(EngineVersion ueVersion, string? mappings, string assetInput)
+    static void ToLlmJson(EngineVersion ueVersion, string? mappings, string assetInput, bool includeDefaults)
     {
         var asset = LoadAsset(ueVersion, mappings, assetInput);
-        Console.WriteLine(LlmExporter.Serialize(LlmExporter.Build(asset, assetInput, ueVersion)));
+        Console.WriteLine(LlmExporter.Serialize(LlmExporter.Build(asset, assetInput, ueVersion, includeDefaults)));
     }
-    static void GenLlmTree(EngineVersion ueVersion, string? mappings, string assetInputDir, string outputDir)
+    static void GenLlmTree(EngineVersion ueVersion, string? mappings, string assetInputDir, string outputDir, bool includeDefaults)
     {
         Directory.CreateDirectory(outputDir);
         var manifest = new LlmManifest();
@@ -380,7 +385,7 @@ Leading underscores can be used to work around special function names being ille
             try
             {
                 var asset = LoadAsset(ueVersion, mappings, assetPath);
-                var export = LlmExporter.Build(asset, relativePath, ueVersion);
+                var export = LlmExporter.Build(asset, relativePath, ueVersion, includeDefaults);
                 var manifestEntry = new LlmManifestEntry
                 {
                     Asset = relativePath.Replace('\\', '/'),
