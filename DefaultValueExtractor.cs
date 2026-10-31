@@ -186,14 +186,15 @@ public static class DefaultValueExtractor
             return doubleData.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        // Some UAssetAPI property types throw on null values when rendered; degrade to an empty
-        // value instead of aborting the whole export.
+        // Some UAssetAPI property types throw on null or empty values when rendered (e.g. null
+        // FStrings, empty GameplayTagContainers); degrade to an empty value instead of aborting
+        // the whole export.
         string text;
         try
         {
             text = property.ToString() ?? "";
         }
-        catch (Exception exception) when (exception is NullReferenceException or InvalidOperationException)
+        catch (Exception)
         {
             return "";
         }

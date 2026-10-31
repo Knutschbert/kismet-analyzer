@@ -200,4 +200,31 @@ public class DefaultValueExtractorTests
         var meta = defaults.Single(value => value.Name == "Meta");
         Assert.Equal("DialogMeta(Title=)", meta.Value);
     }
+
+    [Fact]
+    public void EmptyGameplayTagContainerDoesNotAbortExtraction()
+    {
+        // Regression: GameplayTagContainerPropertyData.ToString() used to throw on an empty tag
+        // container (Remove(-1)), aborting the export for maps like FFA_Falmire.umap whose level
+        // actors hold empty tag containers.
+        var asset = new UAsset();
+        var classExport = new ClassExport();
+        var cdo = new NormalExport
+        {
+            Data = new List<PropertyData>
+            {
+                new GameplayTagContainerPropertyData(FName.DefineDummy(asset, "Tags"))
+                {
+                    Value = Array.Empty<FName>(),
+                },
+            },
+        };
+        asset.Exports = new List<Export> { classExport, cdo };
+        classExport.ClassDefaultObject = FPackageIndex.FromExport(1);
+
+        var defaults = DefaultValueExtractor.Extract(asset);
+
+        var tags = defaults.Single(value => value.Name == "Tags");
+        Assert.Equal("", tags.Value);
+    }
 }
