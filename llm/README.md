@@ -45,3 +45,22 @@ callees, reads, writes, and dependencies directly queryable.
 
 Cooked assets should also be treated as compiled behavior. The recovered CFG is
 not guaranteed to reproduce the original Blueprint editor node graph or layout.
+
+## Semantic exporter usage
+
+The analyzer provides a separate semantic exporter without changing the
+existing `to-json`, `gen-cfg`, or DOT commands:
+
+```console
+kismet-analyzer --ue-version VER_UE4_25 to-llm-json Asset.uasset > Asset.llm.json
+kismet-analyzer --ue-version VER_UE4_25 gen-llm-tree unpacked-assets llm-output/
+```
+
+`to-llm-json` emits one compact semantic asset document. `gen-llm-tree` emits
+one `.llm.json` document per asset plus `manifest.json` for discovery.
+
+The `kismet-analyzer-llm` workspace includes `scripts\produce-llm.bat`. Drop a
+single `.uasset`/`.umap` file or an unpacked asset directory onto it. The script
+automatically selects the single-asset or tree command, uses the bundled
+`bin\kismet-analyzer.exe`, and defaults to UE4.25. Set `KISMET_UE_VERSION` or
+`KISMET_ANALYZER_EXE` to override those defaults.
