@@ -8,7 +8,7 @@ using UAssetAPI.UnrealTypes;
 
 public sealed class LlmAssetExport
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public string Source { get; set; } = "kismet-bytecode";
     public string ParseStatus { get; set; } = "complete";
     public string? Asset { get; set; }
@@ -17,10 +17,11 @@ public sealed class LlmAssetExport
     public string EngineVersion { get; set; } = "UNKNOWN";
     public List<LlmPropertyExport> Properties { get; set; } = new();
     public List<LlmDefaultValue>? DefaultValues { get; set; }
+    public List<LlmExportedObject>? ExportedObjects { get; set; }
     public List<LlmFunctionExport> Functions { get; set; } = new();
     public List<LlmCallEdge> CallEdges { get; set; } = new();
     public List<LlmDiagnostic> Diagnostics { get; set; } = new();
-    public bool HasSemanticContent => Properties.Count > 0 || (DefaultValues?.Count > 0) || Functions.Count > 0 || CallEdges.Count > 0 || Diagnostics.Count > 0;
+    public bool HasSemanticContent => Properties.Count > 0 || (DefaultValues?.Count > 0) || (ExportedObjects?.Count > 0) || Functions.Count > 0 || CallEdges.Count > 0 || Diagnostics.Count > 0;
 }
 
 public sealed class LlmPropertyExport
@@ -28,6 +29,20 @@ public sealed class LlmPropertyExport
     public string Name { get; set; } = "";
     public string Type { get; set; } = "";
     public string? Flags { get; set; }
+}
+
+/// <summary>
+/// A non-CDO export with its resolved Unreal class and meaningful serialized properties.
+/// This retains the class identity of placed map actors and Blueprint component templates that
+/// the legacy flat <see cref="LlmAssetExport.DefaultValues"/> projection cannot represent.
+/// </summary>
+public sealed class LlmExportedObject
+{
+    public string Name { get; set; } = "";
+    public string? Class { get; set; }
+    public string? Outer { get; set; }
+    public string Path { get; set; } = "";
+    public List<LlmDefaultValue> Properties { get; set; } = new();
 }
 
 public sealed class LlmFunctionExport
@@ -109,6 +124,7 @@ public static class LlmExporter
         if (includeDefaults)
         {
             result.DefaultValues = DefaultValueExtractor.Extract(asset);
+            result.ExportedObjects = DefaultValueExtractor.ExtractExportedObjects(asset);
         }
 
         if (classExport != null)

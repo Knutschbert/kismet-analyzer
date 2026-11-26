@@ -137,6 +137,75 @@ public class DefaultValueExtractorTests
     }
 
     [Fact]
+    public void ExtractsClassBearingComponentTemplateRecords()
+    {
+        var asset = new UAsset(ComponentFixturePath, EngineVersion.VER_UE4_25);
+        var objects = DefaultValueExtractor.ExtractExportedObjects(asset);
+
+        Assert.NotEmpty(objects);
+        Assert.All(objects, obj => Assert.False(string.IsNullOrEmpty(obj.Name)));
+        Assert.Contains(objects, obj =>
+            obj.Name == "NODE_AddTextRenderComponent-0" &&
+            obj.Class == "TextRenderComponent" &&
+            obj.Properties.Any(property => property.Name == "bHiddenInGame"));
+    }
+
+    [Fact]
+    public void LlmExportRetainsClassBearingObjectsAlongsideLegacyDefaults()
+    {
+        var asset = new UAsset(ComponentFixturePath, EngineVersion.VER_UE4_25);
+        var export = LlmExporter.Build(asset, "BaseSpawner.uasset", EngineVersion.VER_UE4_25, includeDefaults: true);
+        var json = LlmExporter.Serialize(export);
+
+        Assert.Equal(2, export.SchemaVersion);
+        Assert.NotNull(export.ExportedObjects);
+        Assert.NotEmpty(export.ExportedObjects);
+        Assert.Contains("\"exportedObjects\": [", json);
+        Assert.Contains("\"class\": \"TextRenderComponent\"", json);
+        Assert.Contains("\"defaultValues\": [", json);
+    }
+
+    [Fact]
+    public void ExtractsClassForMapStylePlacedActorExport()
+    {
+        var asset = new UAsset
+        {
+            Imports = new List<Import>(),
+            Exports = new List<Export>(),
+        };
+        asset.Imports.Add(new Import(
+            "/Script/CoreUObject",
+            "Class",
+            new FPackageIndex(),
+            "BP_FreeableVIPSpawner_C",
+            false,
+            asset));
+        asset.Imports.Add(new Import(
+            "/Script/Engine",
+            "Level",
+            new FPackageIndex(),
+            "PersistentLevel",
+            false,
+            asset));
+        asset.Exports.Add(new NormalExport
+        {
+            ObjectName = FName.DefineDummy(asset, "SpwnS4cAtkVIP1"),
+            ClassIndex = FPackageIndex.FromImport(0),
+            OuterIndex = FPackageIndex.FromImport(1),
+            Data = new List<PropertyData>(),
+        });
+
+        var objects = DefaultValueExtractor.ExtractExportedObjects(asset);
+
+        var spawner = Assert.Single(objects);
+        Assert.Equal("SpwnS4cAtkVIP1", spawner.Name);
+        Assert.Equal("BP_FreeableVIPSpawner_C", spawner.Class);
+        Assert.Equal("PersistentLevel", spawner.Outer);
+        Assert.Equal("PersistentLevel.SpwnS4cAtkVIP1", spawner.Path);
+        Assert.Empty(spawner.Properties);
+    }
+
+    [Fact]
     public void SkipsBlueprintPlumbingExports()
     {
         var defaults = ExtractComponents();

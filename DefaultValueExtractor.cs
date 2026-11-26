@@ -65,6 +65,50 @@ public static class DefaultValueExtractor
     }
 
     /// <summary>
+    /// Extracts class-bearing records for every non-plumbing, non-CDO <see cref="NormalExport"/>.
+    /// Unlike the legacy flat default-value projection, these records retain each export's resolved
+    /// class and outer object. That makes map actor instances and Blueprint component/subobject
+    /// templates distinguishable even when their object names are generic.
+    /// </summary>
+    public static List<LlmExportedObject> ExtractExportedObjects(UAsset asset)
+    {
+        var results = new List<LlmExportedObject>();
+        if (asset.Exports == null) return results;
+
+        var cdo = FindCdo(asset);
+        foreach (var export in asset.Exports.OfType<NormalExport>())
+        {
+            if (ReferenceEquals(export, cdo)) continue;
+            if (export is StructExport) continue;
+            if (IsPlumbing(export, asset)) continue;
+
+            var record = new LlmExportedObject
+            {
+                Name = export.ObjectName?.ToString() ?? "",
+                Class = ResolveIndexName(export.ClassIndex, asset),
+                Outer = ResolveIndexName(export.OuterIndex, asset),
+                Path = ResolveObjectPath(export, asset),
+            };
+
+            foreach (var property in export.Data ?? new List<PropertyData>())
+            {
+                var value = RenderValue(property, asset);
+                if (IsSerializedNull(property, value)) continue;
+
+                record.Properties.Add(new LlmDefaultValue
+                {
+                    Name = property.Name?.ToString() ?? "",
+                    Type = TypeLabel(property),
+                    Value = value,
+                });
+            }
+
+            results.Add(record);
+        }
+        return results;
+    }
+
+    /// <summary>
     /// Extracts serialized property overrides from component/subobject template exports, named
     /// <c>ComponentName.PropertyName</c>. Emits nothing for plumbing exports, empty templates,
     /// and serialized null values.
@@ -115,6 +159,46 @@ public static class DefaultValueExtractor
             return className == null || PlumbingClasses.Contains(className);
         }
         return true;
+    }
+
+    private static string? ResolveIndexName(FPackageIndex index, UAsset asset)
+    {
+        if (index.IsImport()) return index.ToImport(asset)?.ObjectName.ToString();
+        if (index.IsExport()) return index.ToExport(asset)?.ObjectName.ToString();
+        return null;
+    }
+
+    private static string ResolveObjectPath(Export export, UAsset asset)
+    {
+        var names = new Stack<string>();
+        names.Push(export.ObjectName?.ToString() ?? "");
+        var current = export.OuterIndex;
+        var seen = new HashSet<int>();
+
+        while (current != null && !current.IsNull() && seen.Add(current.Index))
+        {
+            if (current.IsImport())
+            {
+                var import = current.ToImport(asset);
+                if (import == null) break;
+                names.Push(import.ObjectName?.ToString() ?? "");
+                current = import.OuterIndex;
+                continue;
+            }
+
+            if (current.IsExport())
+            {
+                var outer = current.ToExport(asset);
+                if (outer == null) break;
+                names.Push(outer.ObjectName?.ToString() ?? "");
+                current = outer.OuterIndex;
+                continue;
+            }
+
+            break;
+        }
+
+        return string.Join(".", names.Where(name => !string.IsNullOrEmpty(name)));
     }
 
     private static NormalExport? FindCdo(UAsset asset)

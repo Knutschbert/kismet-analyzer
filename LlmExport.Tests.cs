@@ -30,7 +30,7 @@ public class LlmExportTests
 
         var json = LlmExporter.Serialize(export);
 
-        Assert.Contains("\"schemaVersion\": 1", json);
+        Assert.Contains("\"schemaVersion\": 2", json);
         Assert.Contains("\"parseStatus\": \"complete\"", json);
         Assert.Contains("\"functions\": [", json);
         Assert.Contains("\"successors\": []", json);
