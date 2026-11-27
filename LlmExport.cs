@@ -18,6 +18,12 @@ public sealed class LlmAssetExport
     public List<LlmPropertyExport> Properties { get; set; } = new();
     public List<LlmDefaultValue>? DefaultValues { get; set; }
     public List<LlmExportedObject>? ExportedObjects { get; set; }
+    /// <summary>
+    /// For map (.umap) docs only: aggregate count of exported objects pruned per class (v3 map
+    /// pruning, <see cref="MapPrunePolicy"/>), so map density stays answerable after the art/geometry
+    /// exports are removed. Null for non-map docs and for maps where nothing was pruned.
+    /// </summary>
+    public Dictionary<string, int>? PrunedExportCounts { get; set; }
     public List<LlmFunctionExport> Functions { get; set; } = new();
     public List<LlmCallEdge> CallEdges { get; set; } = new();
     public List<LlmDiagnostic> Diagnostics { get; set; } = new();
@@ -125,6 +131,10 @@ public static class LlmExporter
         {
             result.DefaultValues = DefaultValueExtractor.Extract(asset);
             result.ExportedObjects = DefaultValueExtractor.ExtractExportedObjects(asset);
+            // v3 map pruning (kismet-llm-rb6.1): maps only. Drop engine art/geometry/cinematic/editor
+            // exported objects, replacing them with a per-class aggregate count so density stays
+            // answerable. Gameplay actors/components and Blueprint instances are retained.
+            PruneMapExports(result, assetPath);
         }
 
         if (classExport != null)
@@ -226,6 +236,40 @@ public static class LlmExporter
         if (result.Diagnostics.Count > 0) result.ParseStatus = "partial";
         else if (!result.HasSemanticContent) result.ParseStatus = "empty";
         return result;
+    }
+
+    /// <summary>
+    /// Applies the v3 map-doc prune in place (<see cref="MapPrunePolicy"/>). No-op unless
+    /// <paramref name="assetPath"/> is a map and there are exported objects. Dropped objects are
+    /// tallied per class into <see cref="LlmAssetExport.PrunedExportCounts"/>.
+    /// </summary>
+    internal static void PruneMapExports(LlmAssetExport result, string? assetPath)
+    {
+        if (result.ExportedObjects is not { Count: > 0 }) return;
+        if (!MapPrunePolicy.IsMapAsset(assetPath)) return;
+
+        var kept = new List<LlmExportedObject>(result.ExportedObjects.Count);
+        Dictionary<string, int>? pruned = null;
+        foreach (var obj in result.ExportedObjects)
+        {
+            if (MapPrunePolicy.ShouldDrop(obj.Class))
+            {
+                pruned ??= new Dictionary<string, int>(StringComparer.Ordinal);
+                var key = obj.Class ?? "<unknown>";
+                pruned[key] = pruned.TryGetValue(key, out var n) ? n + 1 : 1;
+            }
+            else
+            {
+                kept.Add(obj);
+            }
+        }
+
+        if (pruned == null) return; // nothing matched the denylist
+        result.ExportedObjects = kept;
+        result.PrunedExportCounts = pruned
+            .OrderByDescending(entry => entry.Value)
+            .ThenBy(entry => entry.Key, StringComparer.Ordinal)
+            .ToDictionary(entry => entry.Key, entry => entry.Value);
     }
 
     public static string Serialize(LlmAssetExport export, bool indented = true)
